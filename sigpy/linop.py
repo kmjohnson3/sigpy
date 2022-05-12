@@ -7,7 +7,7 @@ such as reshape, transpose, and resize.
 import numpy as np
 
 from sigpy import backend, block, fourier, util, interp, conv, wavelet
-
+from cupyx.profiler import benchmark
 
 def _check_shape_positive(shape):
 
@@ -49,7 +49,7 @@ class Linop():
         N: normal linear operator.
 
     """
-    def __init__(self, oshape, ishape, repr_str=None):
+    def __init__(self, oshape, ishape, repr_str=None, time_op=False):
         self.oshape = list(oshape)
         self.ishape = list(ishape)
 
@@ -63,6 +63,7 @@ class Linop():
 
         self.adj = None
         self.normal = None
+        self.time_op = time_op
 
     def _check_ishape(self, input):
         for i1, i2 in zip(input.shape, self.ishape):
@@ -96,6 +97,10 @@ class Linop():
         """
         try:
             self._check_ishape(input)
+            if self.time_op:
+                print(benchmark(self._apply,
+                                (input,),
+                                n_repeat=1, name=f'{self.repr_str} profile'))
             output = self._apply(input)
             self._check_oshape(output)
         except Exception as e:

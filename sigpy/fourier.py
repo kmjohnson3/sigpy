@@ -3,10 +3,12 @@
 
 """
 import numpy as np
-
+import cupyx.profiler
 from math import ceil
 from sigpy import backend, interp, util
 
+import os
+os.environ["CUPY_DUMP_CUDA_SOURCE_ON_ERROR"] = "1"
 
 __all__ = ['fft', 'ifft', 'nufft', 'nufft_adjoint', 'estimate_shape',
            'toeplitz_psf']
@@ -114,20 +116,22 @@ def nufft(input, coord, oversamp=1.25, width=4):
     output = input.copy()
 
     # Apodize
-    _apodize(output, ndim, oversamp, width, beta)
+    output_scale = width**ndim / util.prod(input.shape[-ndim:])**0.5
+    _apodize(output, ndim, oversamp, width, beta, scale=output_scale)
 
     # Zero-pad
-    output /= util.prod(input.shape[-ndim:])**0.5
+    #output /= util.prod(input.shape[-ndim:])**0.5
     output = util.resize(output, os_shape)
 
     # FFT
-    output = fft(output, axes=range(-ndim, 0), norm=None)
+    output = fft(output, axes=range(-ndim, 0), norm=None, center=False)
 
     # Interpolate
-    coord = _scale_coord(coord, input.shape, oversamp)
+    #coord = _scale_coord(coord, input.shape, oversamp)
+    shift, scale = _get_scale_coord(coord, oshape, oversamp)
     output = interp.interpolate(
-        output, coord, kernel='kaiser_bessel', width=width, param=beta)
-    output /= width**ndim
+        output, coord, kernel='kaiser_bessel', width=width, param=beta, shift=shift, scale=scale)
+    #output /= width**ndim
 
     return output
 
@@ -149,7 +153,7 @@ def estimate_shape(coord):
     return shape
 
 
-def nufft_adjoint(input, coord, oshape=None, oversamp=1.25, width=4):
+def nufft_adjoint(input, coord, oshape=None, oversamp=1.25, width=4, time_op=False):
     """Adjoint non-uniform Fast Fourier Transform.
 
     Args:
@@ -185,20 +189,37 @@ def nufft_adjoint(input, coord, oshape=None, oversamp=1.25, width=4):
     os_shape = _get_oversamp_shape(oshape, ndim, oversamp)
 
     # Gridding
-    coord = _scale_coord(coord, oshape, oversamp)
+    #coord = _scale_coord(coord, oshape, oversamp)
+    shift, scale = _get_scale_coord(coord, oshape, oversamp)
+
+    if time_op:
+        print(cupyx.profiler.benchmark(interp.gridding,
+                                       (input, coord, os_shape, 'kaiser_bessel', width, beta, shift, scale),
+                                       n_repeat=1, name='NUFFT::Grid profile'))
     output = interp.gridding(input, coord, os_shape,
-                             kernel='kaiser_bessel', width=width, param=beta)
-    output /= width**ndim
+                             kernel='kaiser_bessel', width=width, param=beta, shift=shift, scale=scale)
+    # Move lower
+    #output /= width**ndim
 
     # IFFT
-    output = ifft(output, axes=range(-ndim, 0), norm=None)
+    if time_op:
+        print(cupyx.profiler.benchmark(ifft,
+                                       (output, range(-ndim, 0), None, False),
+                                       n_repeat=1, name='NUFFT::FFT profile'))
+    output = ifft(output, axes=range(-ndim, 0), norm=None, center=False)
 
     # Crop
     output = util.resize(output, oshape)
-    output *= util.prod(os_shape[-ndim:]) / util.prod(oshape[-ndim:])**0.5
+    #output *= util.prod(os_shape[-ndim:]) / util.prod(oshape[-ndim:])**0.5/width**ndim
+    output_scale = util.prod(os_shape[-ndim:]) / util.prod(oshape[-ndim:])**0.5/width**ndim
 
     # Apodize
-    _apodize(output, ndim, oversamp, width, beta)
+    if time_op:
+        temp = output.copy()
+        print(cupyx.profiler.benchmark(_apodize,
+                                       (temp, ndim, oversamp, width, beta, True, output_scale),
+                                       n_repeat=1, name='NUFFT::Apodize profile'))
+    _apodize(output, ndim, oversamp, width, beta, chop=True, scale=output_scale)
 
     return output
 
@@ -259,11 +280,18 @@ def _fftc(input, oshape=None, axes=None, norm='ortho'):
     if oshape is None:
         oshape = input.shape
 
+    if axes is None:
+        chop_axes = xp.range(ndim)
+    else:
+        chop_axes = axes
+
     tmp = util.resize(input, oshape)
-    tmp = xp.fft.ifftshift(tmp, axes=axes)
+    #tmp = xp.fft.ifftshift(tmp, axes=axes)
+    tmp = _chop(tmp, chop_axes)
     tmp = xp.fft.fftn(tmp, axes=axes, norm=norm)
-    output = xp.fft.fftshift(tmp, axes=axes)
-    return output
+    tmp = _chop(tmp, chop_axes)
+    #output = xp.fft.fftshift(tmp, axes=axes)
+    return tmp
 
 
 def _ifftc(input, oshape=None, axes=None, norm='ortho'):
@@ -275,11 +303,40 @@ def _ifftc(input, oshape=None, axes=None, norm='ortho'):
         oshape = input.shape
 
     tmp = util.resize(input, oshape)
-    tmp = xp.fft.ifftshift(tmp, axes=axes)
-    tmp = xp.fft.ifftn(tmp, axes=axes, norm=norm)
-    output = xp.fft.fftshift(tmp, axes=axes)
-    return output
+    #tmp = xp.fft.ifftshift(tmp, axes=axes)
+    if axes is None:
+        chop_axes = xp.range(ndim)
+    else:
+        chop_axes = axes
 
+    tmp = _chop(tmp, chop_axes)
+    tmp = xp.fft.ifftn(tmp, axes=axes, norm=norm)
+    tmp = _chop(tmp, chop_axes)
+    #output = xp.fft.fftshift(tmp, axes=axes)
+
+    return tmp
+
+def _chop(input, axes):
+    xp = backend.get_array_module(input)
+    ndim = input.ndim
+    for a in axes:
+        i = input.shape[a]
+        idx = xp.arange(i)
+        chop = 1.0 - 2.0*(idx % 2)
+        chop = xp.array(chop, dtype=input.dtype)
+
+        input *= chop.reshape([i] + [1] * (ndim - a - 1))
+    return input
+
+def _get_scale_coord(coord, shape, oversamp):
+    ndim = coord.shape[-1]
+    scale = []
+    shift = []
+    for i in range(-ndim, 0):
+        scale.append(ceil(oversamp * shape[i]) / shape[i])
+        shift.append(ceil(oversamp * shape[i]) // 2)
+
+    return shift, scale
 
 def _scale_coord(coord, shape, oversamp):
     ndim = coord.shape[-1]
@@ -297,17 +354,96 @@ def _get_oversamp_shape(shape, ndim, oversamp):
     return list(shape)[:-ndim] + [ceil(oversamp * i) for i in shape[-ndim:]]
 
 
-def _apodize(input, ndim, oversamp, width, beta):
+def _apodize(input, ndim, oversamp, width, beta, chop=False, scale=1.0):
     xp = backend.get_array_module(input)
     output = input
-    for a in range(-ndim, 0):
-        i = output.shape[a]
-        os_i = ceil(oversamp * i)
-        idx = xp.arange(i, dtype=output.dtype)
 
-        # Calculate apodization
-        apod = (beta**2 - (np.pi * width * (idx - i // 2) / os_i)**2)**0.5
-        apod /= xp.sinh(apod)
-        output *= apod.reshape([i] + [1] * (-a - 1))
+    if xp == np or ndim==1:
+        for a in range(-ndim, 0):
+            i = output.shape[a]
+            os_i = ceil(oversamp * i)
+            idx = xp.arange(i, dtype=output.dtype)
+
+            # Calculate apodization
+            apod = (beta**2 - (np.pi * width * (idx - i // 2) / os_i)**2)**0.5
+            apod /= xp.sinh(apod)
+
+            # Chop performs FFT shift in apodization
+            if chop:
+                idx_chop = xp.arange(i)
+                tmp = 1.0 - 2.0 * (idx_chop % 2)
+                tmp = xp.array(tmp, dtype=input.dtype)
+                apod *= tmp
+
+            if a == -ndim:
+                apod *= scale
+
+            output *= apod.reshape([i] + [1] * (-a - 1))
+
+    else:
+        windows = []
+        for a in range(-ndim, 0):
+            i = output.shape[a]
+            os_i = ceil(oversamp * i)
+            idx = xp.arange(i, dtype=output.dtype)
+
+            # Calculate apodization
+            apod = (beta**2 - (np.pi * width * (idx - i // 2) / os_i)**2)**0.5
+            apod /= xp.sinh(apod)
+
+            # Chop performs FFT shift in apodization
+            if chop:
+                idx_chop = xp.arange(i)
+                tmp = 1.0 - 2.0 * (idx_chop % 2)
+                tmp = xp.array(tmp, dtype=input.dtype)
+                apod *= tmp
+            windows.append(apod)
+
+        windows[0] *= scale
+
+        in_shape = output.shape
+        npts = util.prod(in_shape)
+        output = output.flatten()
+        if ndim == 2:
+            _apodize2_cuda(output, windows[0], windows[1],
+                           int(in_shape[-1]), output, size=npts)
+        else:
+            _apodize3_cuda(output, windows[0], windows[1], windows[2],
+                           int(in_shape[-1]), int(in_shape[-2]), output, size=npts)
+        output = xp.reshape(output, in_shape)
 
     return output
+
+
+if backend.config.cupy_enabled:  # pragma: no cover
+    import cupy as cp
+
+    _apodize2_cuda = cp.ElementwiseKernel(
+        'raw T input, raw T corrx, raw T corry, int32 nx',
+        'raw T output',
+        """
+
+        const int idx_j = i / nx;
+        const int idx_i = i % nx;  
+
+        output[i] *= corrx[idx_i]*corry[idx_j];
+
+        """,
+        name='apodize2',
+        reduce_dims=False)
+
+    _apodize3_cuda = cp.ElementwiseKernel(
+        'raw T input, raw T corrx, raw T corry, raw T corrz, int32 nx, int32 ny',
+        'raw T output',
+        """
+
+        const int idx_i = i % nx;
+        const int tmp_jk = (i - idx_i)/nx;                
+        const int idx_j = tmp_jk % ny; 
+        const int idx_k = tmp_jk / ny;
+
+        output[i] *= corrx[idx_i]*corry[idx_j]*corrz[idx_k];
+
+        """,
+        name='apodize3',
+        reduce_dims=False)
