@@ -49,7 +49,7 @@ class TestPrecond(unittest.TestCase):
                             atol=1E-6, rtol=1e-6)
 
     def test_kspace_precond_noncart(self):
-        n = 10
+        n = 32
         nc = 3
         shape = [nc, n]
         mps = sp.randn(shape, dtype=np.complex)
@@ -154,7 +154,7 @@ class TestPrecond(unittest.TestCase):
 
     def test_circulant_precond_noncart(self):
         nc = 4
-        n = 10
+        n = 8
         shape = [nc, n]
         mps = np.ones(shape, dtype=np.complex)
         mps /= np.linalg.norm(mps, axis=0, keepdims=True)

@@ -14,7 +14,7 @@ __all__ = ['fft', 'ifft', 'nufft', 'nufft_adjoint', 'estimate_shape',
            'toeplitz_psf']
 
 
-def fft(input, oshape=None, axes=None, center=True, norm='ortho'):
+def fft(input, oshape=None, axes=None, center=True, use_chop=False, norm='ortho'):
     """FFT function that supports centering.
 
     Args:
@@ -35,7 +35,8 @@ def fft(input, oshape=None, axes=None, center=True, norm='ortho'):
         input = input.astype(np.complex64)
 
     if center:
-        output = _fftc(input, oshape=oshape, axes=axes, norm=norm)
+        output = _fftc(input, oshape=oshape, axes=axes, norm=norm,
+                       use_chop=use_chop)
     else:
         output = xp.fft.fftn(input, s=oshape, axes=axes, norm=norm)
 
@@ -46,7 +47,7 @@ def fft(input, oshape=None, axes=None, center=True, norm='ortho'):
     return output
 
 
-def ifft(input, oshape=None, axes=None, center=True, norm='ortho'):
+def ifft(input, oshape=None, axes=None, center=True, use_chop=False, norm='ortho'):
     """IFFT function that supports centering.
 
     Args:
@@ -68,7 +69,7 @@ def ifft(input, oshape=None, axes=None, center=True, norm='ortho'):
         input = input.astype(np.complex64)
 
     if center:
-        output = _ifftc(input, oshape=oshape, axes=axes, norm=norm)
+        output = _ifftc(input, oshape=oshape, axes=axes, norm=norm, use_chop=use_chop)
     else:
         output = xp.fft.ifftn(input, s=oshape, axes=axes, norm=norm)
 
@@ -116,7 +117,10 @@ def nufft(input, coord, oversamp=1.25, width=4):
     output = input.copy()
 
     # Apodize
-    output_scale = 1./(width**ndim * util.prod(input.shape[-ndim:])**0.5)
+    output_scale = 1.0
+    output_scale /= util.prod(np.array(input.shape[-ndim:]))**0.5
+    output_scale /= width**ndim
+
     _apodize(output, ndim, oversamp, width, beta,
              scale=output_scale, chop=True)
 
@@ -201,19 +205,21 @@ def nufft_adjoint(input, coord, oshape=None,
             n_repeat=1, name='NUFFT::Grid profile'))
     output = interp.gridding(input, coord, os_shape,
                              kernel='kaiser_bessel', width=width,
-                             param=beta, shift=shift, scale=scale)
+                             param=beta, shift=shift, scale=scale,
+                             chop=True)
 
     # IFFT
     if time_op:
         print(cupyx.profiler.benchmark(ifft,
                                        (output, range(-ndim, 0), None, False),
                                        n_repeat=1, name='NUFFT::FFT profile'))
-    output = ifft(output, axes=range(-ndim, 0), norm=None, center=False)
+    output = ifft(output, axes=range(-ndim, 0), norm=None,
+                  center=False, use_chop=True)
 
     # Crop
     output = util.resize(output, oshape)
-    output_scale = util.prod(os_shape[-ndim:])
-    output_scale /= util.prod(oshape[-ndim:])**0.5/width**ndim
+    output_scale = 1.0 / (width**ndim)
+    output_scale *= util.prod(os_shape[-ndim:]) / util.prod(oshape[-ndim:])**0.5
 
     # Apodize
     if time_op:
@@ -275,7 +281,7 @@ def toeplitz_psf(coord, shape, oversamp=1.25, width=4):
         return psf
 
 
-def _fftc(input, oshape=None, axes=None, norm='ortho'):
+def _fftc(input, oshape=None, axes=None, norm='ortho', use_chop=False):
 
     ndim = input.ndim
     axes = util._normalize_axes(axes, ndim)
@@ -291,15 +297,25 @@ def _fftc(input, oshape=None, axes=None, norm='ortho'):
 
     tmp = util.resize(input, oshape)
 
-    # FFT using phase shifting rather than fftshift
-    tmp = _chop(tmp, chop_axes)
+    if use_chop:
+        # FFT using phase shifting rather than fftshift
+        tmp = _chop(tmp, chop_axes)
+    else:
+        tmp = xp.fft.ifftshift(tmp, axes=axes)
+
+    # Actual do the FFT
     tmp = xp.fft.fftn(tmp, axes=axes, norm=norm)
-    tmp = _chop(tmp, chop_axes)
+
+    if use_chop:
+        # FFT using phase shifting rather than fftshift
+        tmp = _chop(tmp, chop_axes)
+    else:
+        tmp = xp.fft.fftshift(tmp, axes=axes)
 
     return tmp
 
 
-def _ifftc(input, oshape=None, axes=None, norm='ortho'):
+def _ifftc(input, oshape=None, axes=None, norm='ortho', use_chop=False):
 
     ndim = input.ndim
     axes = util._normalize_axes(axes, ndim)
@@ -314,10 +330,20 @@ def _ifftc(input, oshape=None, axes=None, norm='ortho'):
     else:
         chop_axes = axes
 
+    if use_chop:
+        # FFT using phase shifting rather than fftshift
+        tmp = _chop(tmp, chop_axes)
+    else:
+        tmp = xp.fft.ifftshift(tmp, axes=axes)
+
     # FFT using phase shifting rather than fftshift
-    tmp = _chop(tmp, chop_axes)
     tmp = xp.fft.ifftn(tmp, axes=axes, norm=norm)
-    tmp = _chop(tmp, chop_axes)
+
+    if use_chop:
+        # FFT using phase shifting rather than fftshift
+        tmp = _chop(tmp, chop_axes)
+    else:
+        tmp = xp.fft.fftshift(tmp, axes=axes)
 
     return tmp
 
