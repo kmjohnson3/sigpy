@@ -14,7 +14,8 @@ __all__ = ['fft', 'ifft', 'nufft', 'nufft_adjoint', 'estimate_shape',
            'toeplitz_psf']
 
 
-def fft(input, oshape=None, axes=None, center=True, use_chop=False, norm='ortho'):
+def fft(input, oshape=None, axes=None,
+        center=True, use_chop=False, norm='ortho'):
     """FFT function that supports centering.
 
     Args:
@@ -47,7 +48,8 @@ def fft(input, oshape=None, axes=None, center=True, use_chop=False, norm='ortho'
     return output
 
 
-def ifft(input, oshape=None, axes=None, center=True, use_chop=False, norm='ortho'):
+def ifft(input, oshape=None, axes=None,
+         center=True, use_chop=False, norm='ortho'):
     """IFFT function that supports centering.
 
     Args:
@@ -69,7 +71,8 @@ def ifft(input, oshape=None, axes=None, center=True, use_chop=False, norm='ortho
         input = input.astype(np.complex64)
 
     if center:
-        output = _ifftc(input, oshape=oshape, axes=axes, norm=norm, use_chop=use_chop)
+        output = _ifftc(input, oshape=oshape, axes=axes,
+                        norm=norm, use_chop=use_chop)
     else:
         output = xp.fft.ifftn(input, s=oshape, axes=axes, norm=norm)
 
@@ -219,7 +222,8 @@ def nufft_adjoint(input, coord, oshape=None,
     # Crop
     output = util.resize(output, oshape)
     output_scale = 1.0 / (width**ndim)
-    output_scale *= util.prod(os_shape[-ndim:]) / util.prod(oshape[-ndim:])**0.5
+    output_scale \
+        *= util.prod(os_shape[-ndim:]) / util.prod(oshape[-ndim:])**0.5
 
     # Apodize
     if time_op:

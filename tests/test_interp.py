@@ -49,7 +49,9 @@ class TestInterp(unittest.TestCase):
                                           [2.1] + [0] * (ndim - 1)])
 
                         input = xp.array([[0, 1.0, 0]] * batch, dtype=dtype)
-                        output = interp.gridding(input, coord, [batch] + shape, chop=False)
+                        output = interp.gridding(input, coord,
+                                                 [batch] + shape,
+                                                 chop=False)
                         output_expected = xp.array(
                             [[0, 0.9, 0.1]] * batch).reshape([batch] + shape)
                         xp.testing.assert_allclose(output, output_expected,
@@ -75,7 +77,7 @@ class TestInterp(unittest.TestCase):
         def test_gridding_cpu_gpu(self):
             for ndim in [1, 2, 3]:
                 for dtype in [np.float32, np.complex64]:
-                   for chop in [False, True]:
+                    for chop in [False, True]:
                         with self.subTest(ndim=ndim, dtype=dtype, chop=chop):
                             shape = [2, 20] + [1] * (ndim - 1)
                             coord = np.random.random([10, ndim])
@@ -83,7 +85,8 @@ class TestInterp(unittest.TestCase):
                             input = np.random.random(
                                 [2, 10] + [1] * (ndim - 1)).astype(dtype=dtype)
                             output_cpu = interp.gridding(
-                                input, coord, shape, kernel="kaiser_bessel", chop=chop)
+                                input, coord, shape,
+                                kernel="kaiser_bessel", chop=chop)
                             output_gpu = interp.gridding(
                                 cp.array(input), cp.array(coord), shape,
                                 kernel="kaiser_bessel", chop=chop).get()

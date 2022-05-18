@@ -70,12 +70,13 @@ def kspace_precond(mps, weights=None, coord=None,
             for mps_j in mps:
                 mps_j = sp.to_device(mps_j, device)
                 if coord is None:
-                    xcorr_fourier += xp.abs(sp.fft(mps_i *
-                                               xp.conj(mps_j), img2_shape))**2
+                    xcorr_fourier += \
+                        xp.abs(sp.fft(mps_i * xp.conj(mps_j), img2_shape))**2
                 else:
-                    xcorr_fourier += xp.abs(sp.fft(mps_i *
-                                               xp.conj(mps_j), img2_shape,
-                                               use_chop=True))**2
+                    xcorr_fourier += \
+                        xp.abs(sp.fft(mps_i * xp.conj(mps_j),
+                                      img2_shape,
+                                      use_chop=True))**2
 
             if coord is None:
                 xcorr = sp.ifft(xcorr_fourier)

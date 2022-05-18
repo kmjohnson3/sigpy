@@ -681,7 +681,7 @@ if config.cupy_enabled:  # pragma: no cover
                 if(chop){
                     w *= (S)(1.0 - 2.0 * (x % 2));
                 }
-                                
+
                 for (int b = 0; b < batch_size; b++) {
                     const int input_idx[] = {b, i};
                     const T v = (T) w * input[input_idx];
@@ -718,16 +718,16 @@ if config.cupy_enabled:  # pragma: no cover
                 S wy = kernel(
                     ((S) y - ky) / (width[0] / 2.0),
                     param[0]);
-                
+
                 if(chop){
                     wy *= (S)(1.0 - 2.0 * (y % 2));
                 }
-                    
+
                 for (int x = x0; x < x1 + 1; x++) {
                     S w = wy * kernel(
                         ((S) x - kx) / (width[1] / 2.0),
                         param[1]);
-                    
+
                     if(chop){
                         w *= (S)(1.0 - 2.0 * (x % 2));
                     }
@@ -773,7 +773,7 @@ if config.cupy_enabled:  # pragma: no cover
                 if(chop){
                     wz *= (S)(1.0 - 2.0 * (z % 2));
                 }
-                    
+
                 for (int y = y0; y < y1 + 1; y++) {
                     S wy = wz * kernel(
                         ((S) y - ky) / (width[1] / 2.0),
@@ -781,7 +781,7 @@ if config.cupy_enabled:  # pragma: no cover
                     if(chop){
                         wy *= (S)(1.0 - 2.0 * (y % 2));
                     }
-                    
+
                     for (int x = x0; x < x1 + 1; x++) {
                         S w = wy * kernel(
                             ((S) x - kx) / (width[2] / 2.0),
@@ -789,8 +789,8 @@ if config.cupy_enabled:  # pragma: no cover
                         if(chop){
                             w *= (S)(1.0 - 2.0 * (x % 2));
                         }
-                    
-                        
+
+
                         for (int b = 0; b < batch_size; b++) {
                             const int input_idx[] = {b, i};
                             const T v = (T) w * input[input_idx];
@@ -832,7 +832,7 @@ if config.cupy_enabled:  # pragma: no cover
                 if(chop){
                     w *= (S)(1.0 - 2.0 * (x % 2));
                 }
-                
+
                 for (int b = 0; b < batch_size; b++) {
                     const int input_idx[] = {b, i};
                     const T v = (T) w * input[input_idx];
@@ -874,20 +874,20 @@ if config.cupy_enabled:  # pragma: no cover
                 S wy = kernel(
                     ((S) y - ky) / (width[0] / 2.0),
                     param[0]);
-                
+
                 if(chop){
                     wy *= (S)(1.0 - 2.0 * (y % 2));
                 }
-                    
+
                 for (int x = x0; x < x1 + 1; x++) {
                     S w = wy * kernel(
                         ((S) x - kx) / (width[1] / 2.0),
                         param[1]);
-                    
+
                     if(chop){
                         w *= (S)(1.0 - 2.0 * (x % 2));
                     }
-                    
+
                     for (int b = 0; b < batch_size; b++) {
                         const int input_idx[] = {b, i};
                         const T v = (T) w * input[input_idx];
@@ -937,7 +937,7 @@ if config.cupy_enabled:  # pragma: no cover
                 if(chop){
                     wz *= (S)(1.0 - 2.0 * (z % 2));
                 }
-                    
+
                 for (int y = y0; y < y1 + 1; y++) {
                     S wy = wz * kernel(
                         ((S) y - ky) / (width[1] / 2.0),
@@ -945,7 +945,7 @@ if config.cupy_enabled:  # pragma: no cover
                     if(chop){
                         wy *= (S)(1.0 - 2.0 * (y % 2));
                     }
-                    
+
                     for (int x = x0; x < x1 + 1; x++) {
                         S w = wy * kernel(
                             ((S) x - kx) / (width[2] / 2.0),
@@ -953,7 +953,7 @@ if config.cupy_enabled:  # pragma: no cover
                         if(chop){
                             w *= (S)(1.0 - 2.0 * (x % 2));
                         }
-                        
+
                         for (int b = 0; b < batch_size; b++) {
                             const int input_idx[] = {b, i};
                             const T v = (T) w * input[input_idx];
