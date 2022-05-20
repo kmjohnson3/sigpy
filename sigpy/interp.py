@@ -265,7 +265,7 @@ def _get_interpolate(kernel):
 
                 w = kernel((x - kx) / (width[-1] / 2), param[-1])
                 if chop:
-                    w *= 1.0 - 2.0 * (x % 2)
+                    w *= 1.0 - 2.0 * ((x % nx) % 2)
 
                 for b in range(batch_size):
                     output[b, i] += w * input[b, x % nx]
@@ -291,12 +291,12 @@ def _get_interpolate(kernel):
             for y in range(y0, y1 + 1):
                 wy = kernel((y - ky) / (width[-2] / 2), param[-2])
                 if chop:
-                    wy *= 1.0 - 2.0 * (y % 2)
+                    wy *= 1.0 - 2.0 * ((y % ny) % 2)
 
                 for x in range(x0, x1 + 1):
                     w = wy * kernel((x - kx) / (width[-1] / 2), param[-1])
                     if chop:
-                        w *= 1.0 - 2.0 * (x % 2)
+                        w *= 1.0 - 2.0 * ((x % nx) % 2)
 
                     for b in range(batch_size):
                         output[b, i] += w * input[b, y % ny, x % nx]
@@ -324,17 +324,17 @@ def _get_interpolate(kernel):
             for z in range(z0, z1 + 1):
                 wz = kernel((z - kz) / (width[-3] / 2), param[-3])
                 if chop:
-                    wz *= 1.0 - 2.0 * (z % 2)
+                    wz *= 1.0 - 2.0 * ((z % nz) % 2)
 
                 for y in range(y0, y1 + 1):
                     wy = wz * kernel((y - ky) / (width[-2] / 2), param[-2])
                     if chop:
-                        wy *= 1.0 - 2.0 * (y % 2)
+                        wy *= 1.0 - 2.0 * ((y % ny) % 2)
 
                     for x in range(x0, x1 + 1):
                         w = wy * kernel((x - kx) / (width[-1] / 2), param[-1])
                         if chop:
-                            w *= 1.0 - 2.0 * (x % 2)
+                            w *= 1.0 - 2.0 * ((x % nx) % 2)
 
                         for b in range(batch_size):
                             output[b, i] += w * input[
@@ -364,7 +364,7 @@ def _get_gridding(kernel):
             for x in range(x0, x1 + 1):
                 w = kernel((x - kx) / (width[-1] / 2), param[-1])
                 if chop:
-                    w *= 1.0 - 2.0 * (x % 2)
+                    w *= 1.0 - 2.0 * ((x % nx) % 2)
 
                 for b in range(batch_size):
                     output[b, x % nx] += w * input[b, i]
@@ -388,12 +388,12 @@ def _get_gridding(kernel):
             for y in range(y0, y1 + 1):
                 wy = kernel((y - ky) / (width[-2] / 2), param[-2])
                 if chop:
-                    wy *= 1.0 - 2.0 * (y % 2)
+                    wy *= 1.0 - 2.0 * ((y % ny) % 2)
 
                 for x in range(x0, x1 + 1):
                     w = wy * kernel((x - kx) / (width[-1] / 2), param[-1])
                     if chop:
-                        w *= 1.0 - 2.0 * (x % 2)
+                        w *= 1.0 - 2.0 * ((x % nx) % 2)
 
                     for b in range(batch_size):
                         output[b, y % ny, x % nx] += w * input[b, i]
@@ -422,18 +422,18 @@ def _get_gridding(kernel):
             for z in range(z0, z1 + 1):
                 wz = kernel((z - kz) / (width[-3] / 2), param[-3])
                 if chop:
-                    wz *= 1.0 - 2.0 * (z % 2)
+                    wz *= 1.0 - 2.0 * ((z % nz) % 2)
 
                 for y in range(y0, y1 + 1):
                     wy = wz * kernel((y - ky) / (width[-2] / 2), param[-2])
                     if chop:
-                        wy *= 1.0 - 2.0 * (y % 2)
+                        wy *= 1.0 - 2.0 * ((y % ny) % 2)
 
                     for x in range(x0, x1 + 1):
                         w = wy * kernel(
                             (x - kx) / (width[-1] / 2), param[-1])
                         if chop:
-                            w *= 1.0 - 2.0 * (x % 2)
+                            w *= 1.0 - 2.0 * ((x % nx) % 2)
 
                         for b in range(batch_size):
                             output[b, z % nz, y % ny, x % nx] += w * input[
@@ -530,11 +530,12 @@ if config.cupy_enabled:  # pragma: no cover
             for (int x = x0; x < x1 + 1; x++) {
                 S w = kernel(
                     ((S) x - kx) / (width[ndim - 1] / 2.0), param[ndim - 1]);
+                const int in_x = mod(x, nx);
                 if(chop){
-                    w *= (S)(1.0 - 2.0 * (x % 2));
+                    w *= (S)(1.0 - 2.0 * (in_x % 2));
                 }
                 for (int b = 0; b < batch_size; b++) {
-                    const int input_idx[] = {b, mod(x, nx)};
+                    const int input_idx[] = {b, in_x};
                     const T v = (T) w * input[input_idx];
                     const int output_idx[] = {b, i};
                     output[output_idx] += v;
@@ -568,19 +569,21 @@ if config.cupy_enabled:  # pragma: no cover
 
             for (int y = y0; y < y1 + 1; y++) {
                 S wy = kernel(((S) y - ky) / (width[0] / 2.0), param[0]);
+                const int in_y = mod(y, ny);
                 if(chop){
-                    wy *= (S)(1.0 - 2.0 * (y % 2));
+                    wy *= (S)(1.0 - 2.0 * (in_y % 2));
                 }
 
                 for (int x = x0; x < x1 + 1; x++) {
                     S w = wy * kernel(
                                 ((S) x - kx) / (width[1] / 2.0),
                                 param[1]);
+                    const int in_x = mod(x, nx);
                     if(chop){
-                        w *= (S)(1.0 - 2.0 * (x % 2));
+                        w *= (S)(1.0 - 2.0 * (in_x % 2));
                     }
                     for (int b = 0; b < batch_size; b++) {
-                        const int input_idx[] = {b, mod(y, ny), mod(x, nx)};
+                        const int input_idx[] = {b, in_y, in_x};
                         const T v = (T) w * input[input_idx];
                         const int output_idx[] = {b, i};
                         output[output_idx] += v;
@@ -619,8 +622,9 @@ if config.cupy_enabled:  # pragma: no cover
 
             for (int z = z0; z < z1 + 1; z++) {
                 S wz = kernel(((S) z - kz) / (width[0] / 2.0), param[0]);
+                const int in_z = mod(z, nz);
                 if(chop){
-                    wz *= (S)(1.0 - 2.0 * (z % 2));
+                    wz *= (S)(1.0 - 2.0 * (in_z % 2));
                 }
 
                 for (int y = y0; y < y1 + 1; y++) {
@@ -628,21 +632,23 @@ if config.cupy_enabled:  # pragma: no cover
                     S wy = wz * kernel(
                                     ((S) y - ky) / (width[1] / 2.0),
                                     param[1]);
+                    const int in_y = mod(y, ny);
                     if(chop){
-                        wy *= (S)(1.0 - 2.0 * (y % 2));
+                        wy *= (S)(1.0 - 2.0 * (in_y % 2));
                     }
 
                     for (int x = x0; x < x1 + 1; x++) {
                         S w = wy * kernel(
                                     ((S) x - kx) / (width[2] / 2.0),
                                     param[2]);
+                        const int in_x = mod(x, nx);
                         if(chop){
-                            w *= (S)(1.0 - 2.0 * (x % 2));
+                            w *= (S)(1.0 - 2.0 * (in_x % 2));
                         }
 
                         for (int b = 0; b < batch_size; b++) {
                             const int input_idx[] =
-                                {b, mod(z, nz), mod(y, ny), mod(x, nx)};
+                                {b, in_z, in_y, in_x};
                             const T v = (T) w * input[input_idx];
                             const int output_idx[] = {b, i};
                             output[output_idx] += v;
@@ -666,7 +672,7 @@ if config.cupy_enabled:  # pragma: no cover
             'bool chop, raw S shift, raw S scale',
             'raw T output',
             """
-            const int ndim = 1;
+
             const int batch_size = output.shape()[0];
             const int nx = output.shape()[1];
 
@@ -678,14 +684,16 @@ if config.cupy_enabled:  # pragma: no cover
             for (int x = x0; x < x1 + 1; x++) {
                 S w = kernel(
                     ((S) x - kx) / (width[0] / 2.0), param[0]);
+
+                const int out_x = mod(x, nx);
                 if(chop){
-                    w *= (S)(1.0 - 2.0 * (x % 2));
+                    w *= (S)(1.0 - 2.0 * (out_x % 2));
                 }
 
                 for (int b = 0; b < batch_size; b++) {
                     const int input_idx[] = {b, i};
                     const T v = (T) w * input[input_idx];
-                    const int output_idx[] = {b, mod(x, nx)};
+                    const int output_idx[] = {b, out_x};
                     atomicAdd(&output[output_idx], v);
                 }
             }
@@ -698,7 +706,7 @@ if config.cupy_enabled:  # pragma: no cover
             'raw T input, raw S coord, raw S width, raw S param,'
             'bool chop, raw S shift, raw S scale', 'raw T output',
             """
-            const int ndim = 2;
+
             const int batch_size = output.shape()[0];
             const int ny = output.shape()[1];
             const int nx = output.shape()[2];
@@ -719,8 +727,9 @@ if config.cupy_enabled:  # pragma: no cover
                     ((S) y - ky) / (width[0] / 2.0),
                     param[0]);
 
+                const int out_y = mod(y, ny);
                 if(chop){
-                    wy *= (S)(1.0 - 2.0 * (y % 2));
+                    wy *= (S)(1.0 - 2.0 * (out_y % 2));
                 }
 
                 for (int x = x0; x < x1 + 1; x++) {
@@ -728,13 +737,15 @@ if config.cupy_enabled:  # pragma: no cover
                         ((S) x - kx) / (width[1] / 2.0),
                         param[1]);
 
+                    const int out_x = mod(x, nx);
                     if(chop){
-                        w *= (S)(1.0 - 2.0 * (x % 2));
+                        w *= (S)(1.0 - 2.0 * (out_x % 2));
                     }
+
                     for (int b = 0; b < batch_size; b++) {
                         const int input_idx[] = {b, i};
                         const T v = (T) w * input[input_idx];
-                        const int output_idx[] = {b, mod(y, ny), mod(x, nx)};
+                        const int output_idx[] = {b, out_y, out_x};
                         atomicAdd(&output[output_idx], v);
                     }
                 }
@@ -770,32 +781,35 @@ if config.cupy_enabled:  # pragma: no cover
                 S wz = kernel(
                     ((S) z - kz) / (width[0] / 2.0),
                     param[0]);
+                const int out_z = mod(z, nz);
                 if(chop){
-                    wz *= (S)(1.0 - 2.0 * (z % 2));
+                    wz *= (S)(1.0 - 2.0 * (out_z % 2));
                 }
 
                 for (int y = y0; y < y1 + 1; y++) {
                     S wy = wz * kernel(
                         ((S) y - ky) / (width[1] / 2.0),
                         param[1]);
+                    const int out_y = mod(y, ny);
                     if(chop){
-                        wy *= (S)(1.0 - 2.0 * (y % 2));
+                        wy *= (S)(1.0 - 2.0 * (out_y % 2));
                     }
 
                     for (int x = x0; x < x1 + 1; x++) {
                         S w = wy * kernel(
                             ((S) x - kx) / (width[2] / 2.0),
                             param[2]);
-                        if(chop){
-                            w *= (S)(1.0 - 2.0 * (x % 2));
-                        }
 
+                        const int out_x = mod(x, nx);
+                        if(chop){
+                            w *= (S)(1.0 - 2.0 * (out_x % 2));
+                        }
 
                         for (int b = 0; b < batch_size; b++) {
                             const int input_idx[] = {b, i};
                             const T v = (T) w * input[input_idx];
                             const int output_idx[] = {
-                                b, mod(z, nz), mod(y, ny), mod(x, nx)};
+                                b, out_z, out_y, out_x};
                             atomicAdd(&output[output_idx], v);
                         }
                     }
@@ -829,14 +843,15 @@ if config.cupy_enabled:  # pragma: no cover
             for (int x = x0; x < x1 + 1; x++) {
                 S w = kernel(
                     ((S) x - kx) / (width[0] / 2.0), param[0]);
+                const int out_x = mod(x, nx);
                 if(chop){
-                    w *= (S)(1.0 - 2.0 * (x % 2));
+                    w *= (S)(1.0 - 2.0 * (out_x % 2));
                 }
 
                 for (int b = 0; b < batch_size; b++) {
                     const int input_idx[] = {b, i};
                     const T v = (T) w * input[input_idx];
-                    const int output_idx[] = {b, mod(x, nx)};
+                    const int output_idx[] = {b, out_x};
                     atomicAdd(
                         reinterpret_cast<T::value_type*>(
                             &(output[output_idx])), v.real());
@@ -875,8 +890,9 @@ if config.cupy_enabled:  # pragma: no cover
                     ((S) y - ky) / (width[0] / 2.0),
                     param[0]);
 
+                const int out_y = mod(y, ny);
                 if(chop){
-                    wy *= (S)(1.0 - 2.0 * (y % 2));
+                    wy *= (S)(1.0 - 2.0 * (out_y % 2));
                 }
 
                 for (int x = x0; x < x1 + 1; x++) {
@@ -884,14 +900,15 @@ if config.cupy_enabled:  # pragma: no cover
                         ((S) x - kx) / (width[1] / 2.0),
                         param[1]);
 
+                    const int out_x = mod(x, nx);
                     if(chop){
-                        w *= (S)(1.0 - 2.0 * (x % 2));
+                        w *= (S)(1.0 - 2.0 * (out_x % 2));
                     }
 
                     for (int b = 0; b < batch_size; b++) {
                         const int input_idx[] = {b, i};
                         const T v = (T) w * input[input_idx];
-                        const int output_idx[] = {b, mod(y, ny), mod(x, nx)};
+                        const int output_idx[] = {b, out_y, out_x};
                         atomicAdd(reinterpret_cast<T::value_type*>(
                             &(output[output_idx])), v.real());
                         atomicAdd(reinterpret_cast<T::value_type*>(
@@ -934,31 +951,35 @@ if config.cupy_enabled:  # pragma: no cover
                 S wz = kernel(
                     ((S) z - kz) / (width[0] / 2.0),
                     param[0]);
+                const int out_z = mod(z, nz);
                 if(chop){
-                    wz *= (S)(1.0 - 2.0 * (z % 2));
+                    wz *= (S)(1.0 - 2.0 * (out_z % 2));
                 }
 
                 for (int y = y0; y < y1 + 1; y++) {
                     S wy = wz * kernel(
                         ((S) y - ky) / (width[1] / 2.0),
                         param[1]);
+                    const int out_y = mod(y, ny);
                     if(chop){
-                        wy *= (S)(1.0 - 2.0 * (y % 2));
+                        wy *= (S)(1.0 - 2.0 * (out_y % 2));
                     }
 
                     for (int x = x0; x < x1 + 1; x++) {
                         S w = wy * kernel(
                             ((S) x - kx) / (width[2] / 2.0),
                             param[2]);
+
+                        const int out_x = mod(x, nx);
                         if(chop){
-                            w *= (S)(1.0 - 2.0 * (x % 2));
+                            w *= (S)(1.0 - 2.0 * (out_x % 2));
                         }
 
                         for (int b = 0; b < batch_size; b++) {
                             const int input_idx[] = {b, i};
                             const T v = (T) w * input[input_idx];
                             const int output_idx[] = {
-                                b, mod(z, nz), mod(y, ny), mod(x, nx)};
+                                b, out_z, out_y, out_x};
                             atomicAdd(reinterpret_cast<T::value_type*>(
                                 &(output[output_idx])), v.real());
                             atomicAdd(reinterpret_cast<T::value_type*>(
