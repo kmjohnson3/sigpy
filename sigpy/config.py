@@ -18,6 +18,15 @@ if cupy_enabled:
         )
         cupy_enabled = False
 
+    try:
+        import cupyx # noqa
+    except ImportError as e:
+        warnings.warn(
+            f"Importing cupyx failed. "
+            f"For more details, see the error stack below:\n{e}"
+        )
+        cupyx_enabled = False
+
 if cupy_enabled:  # pragma: no cover
     try:
         cudnn_enabled = util.find_spec("cupy.cuda.cudnn") is not None

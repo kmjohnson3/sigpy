@@ -7,7 +7,9 @@ such as reshape, transpose, and resize.
 import numpy as np
 
 from sigpy import backend, block, fourier, util, interp, conv, wavelet
-from cupyx.profiler import benchmark
+
+if backend.config.cupyx_enabled:
+    from cupyx.profiler import benchmark
 
 
 def _check_shape_positive(shape):
@@ -98,7 +100,7 @@ class Linop():
         """
         try:
             self._check_ishape(input)
-            if self.time_op:
+            if self.time_op and backend.config.cupyx_enabled:
                 print(benchmark(self._apply,
                                 (input,),
                                 n_repeat=1, name=f'{self.repr_str} profile'))

@@ -3,12 +3,12 @@
 
 """
 import numpy as np
-import cupyx.profiler
+
 from math import ceil
 from sigpy import backend, interp, util
 
-import os
-os.environ["CUPY_DUMP_CUDA_SOURCE_ON_ERROR"] = "1"
+if backend.config.cupyx_enabled:
+    import cupyx.profiler
 
 __all__ = ['fft', 'ifft', 'nufft', 'nufft_adjoint', 'estimate_shape',
            'toeplitz_psf']
@@ -200,7 +200,7 @@ def nufft_adjoint(input, coord, oshape=None,
     # Gridding
     shift, scale = _get_scale_coord(coord, oshape, oversamp)
 
-    if time_op:
+    if time_op and backend.config.cupyx_enabled:
         print(cupyx.profiler.benchmark(
             interp.gridding,
             (input, coord, os_shape, 'kaiser_bessel', width, beta,
@@ -212,7 +212,7 @@ def nufft_adjoint(input, coord, oshape=None,
                              chop=True)
 
     # IFFT
-    if time_op:
+    if time_op and backend.config.cupyx_enabled:
         print(cupyx.profiler.benchmark(ifft,
                                        (output, range(-ndim, 0), None, False),
                                        n_repeat=1, name='NUFFT::FFT profile'))
@@ -226,7 +226,7 @@ def nufft_adjoint(input, coord, oshape=None,
         *= util.prod(os_shape[-ndim:]) / util.prod(oshape[-ndim:])**0.5
 
     # Apodize
-    if time_op:
+    if time_op and backend.config.cupyx_enabled:
         temp = output.copy()
         print(cupyx.profiler.benchmark(
             _apodize,
