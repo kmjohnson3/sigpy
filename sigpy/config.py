@@ -8,6 +8,7 @@ import warnings
 from importlib import util
 
 cupy_enabled = util.find_spec("cupy") is not None
+cupyx_enabled = util.find_spec("cupyx") is not None
 if cupy_enabled:
     try:
         import cupy  # noqa
